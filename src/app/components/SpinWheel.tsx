@@ -1,0 +1,282 @@
+import { useState, useRef } from 'react';
+import { motion } from 'motion/react';
+import { Sparkles } from 'lucide-react';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
+import { toast } from 'sonner';
+
+interface Prize {
+  id: number;
+  label: string;
+  color: string;
+  probability: number;
+}
+
+const prizes: Prize[] = [
+  { id: 1, label: '10% OFF', color: '#FF6B6B', probability: 20 },
+  { id: 2, label: 'Free Shipping', color: '#4ECDC4', probability: 15 },
+  { id: 3, label: '15% OFF', color: '#FFD93D', probability: 15 },
+  { id: 4, label: 'Try Again', color: '#95E1D3', probability: 25 },
+  { id: 5, label: '20% OFF', color: '#F38181', probability: 10 },
+  { id: 6, label: '$5 OFF', color: '#AA96DA', probability: 10 },
+  { id: 7, label: 'Try Again', color: '#FCBAD3', probability: 5 },
+  { id: 8, label: '25% OFF', color: '#A8E6CF', probability: 0 },
+];
+
+export function SpinWheel() {
+  const [rotation, setRotation] = useState(0);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [wonPrize, setWonPrize] = useState<Prize | null>(null);
+  const [discountCode, setDiscountCode] = useState('');
+  const wheelRef = useRef<HTMLDivElement>(null);
+
+  const segmentAngle = 360 / prizes.length;
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const generateDiscountCode = (prize: Prize) => {
+    const codes: { [key: string]: string } = {
+      '10% OFF': 'SPIN10',
+      '15% OFF': 'SPIN15',
+      '20% OFF': 'SPIN20',
+      '25% OFF': 'SPIN25',
+      'Free Shipping': 'SHIPFREE',
+      '$5 OFF': 'SAVE5',
+    };
+    return codes[prize.label] || 'TRYAGAIN';
+  };
+
+  const handleSpin = () => {
+    if (isSpinning) return;
+
+    setIsSpinning(true);
+    
+    // Select random prize based on probability
+    const random = Math.random() * 100;
+    let cumulativeProbability = 0;
+    let selectedPrize = prizes[0];
+
+    for (const prize of prizes) {
+      cumulativeProbability += prize.probability;
+      if (random <= cumulativeProbability) {
+        selectedPrize = prize;
+        break;
+      }
+    }
+
+    // Calculate rotation to land on selected prize
+    const prizeIndex = prizes.findIndex(p => p.id === selectedPrize.id);
+    const baseDegree = prizeIndex * segmentAngle;
+    const randomOffset = Math.random() * segmentAngle;
+    const targetRotation = 360 * 5 + (360 - baseDegree - randomOffset); // 5 full rotations + target
+
+    setRotation(rotation + targetRotation);
+    setWonPrize(selectedPrize);
+
+    // Show email modal after spin completes
+    setTimeout(() => {
+      setIsSpinning(false);
+      setShowEmailModal(true);
+    }, 4000);
+  };
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateEmail(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+
+    setEmailError('');
+    
+    if (wonPrize) {
+      const code = generateDiscountCode(wonPrize);
+      setDiscountCode(code);
+      setShowEmailModal(false);
+      setShowResultModal(true);
+      
+      if (wonPrize.label !== 'Try Again') {
+        toast.success('Prize claimed successfully! Check your email for details.');
+      }
+    }
+  };
+
+  const handleCloseResult = () => {
+    setShowResultModal(false);
+    setEmail('');
+    setDiscountCode('');
+    setWonPrize(null);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+      <div className="max-w-2xl w-full">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <Sparkles className="w-10 h-10 text-yellow-300 animate-pulse" />
+            <h1 className="text-white">Spin & Win!</h1>
+            <Sparkles className="w-10 h-10 text-yellow-300 animate-pulse" />
+          </div>
+          <p className="text-white/90 text-lg">Try your luck and win amazing prizes!</p>
+          <p className="text-white/70 text-sm mt-2">Enter your email after spinning to claim your reward</p>
+        </div>
+
+        {/* Wheel Container */}
+        <div className="relative flex items-center justify-center mb-12">
+          {/* Center pointer */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-4 z-20 drop-shadow-2xl">
+            <div className="w-0 h-0 border-l-[20px] border-l-transparent border-r-[20px] border-r-transparent border-t-[30px] border-t-white" />
+          </div>
+
+          {/* Wheel */}
+          <div className="relative w-[350px] h-[350px] sm:w-[400px] sm:h-[400px] md:w-[500px] md:h-[500px]">
+            <motion.div
+              ref={wheelRef}
+              className="w-full h-full rounded-full relative overflow-hidden shadow-2xl"
+              style={{
+                background: '#fff',
+              }}
+              animate={{ rotate: rotation }}
+              transition={{
+                duration: 4,
+                ease: [0.25, 0.1, 0.25, 1],
+              }}
+            >
+              {prizes.map((prize, index) => {
+                const startAngle = index * segmentAngle - 90;
+                const endAngle = startAngle + segmentAngle;
+                
+                return (
+                  <div
+                    key={prize.id}
+                    className="absolute w-full h-full"
+                    style={{
+                      transform: `rotate(${index * segmentAngle}deg)`,
+                      transformOrigin: 'center',
+                    }}
+                  >
+                    <div
+                      className="absolute top-0 left-1/2 w-1/2 h-1/2 origin-bottom-left"
+                      style={{
+                        background: `linear-gradient(135deg, ${prize.color} 0%, ${prize.color}dd 100%)`,
+                        clipPath: `polygon(0 0, 100% 0, 100% 100%)`,
+                        transform: `rotate(${segmentAngle}deg) skewY(${90 - segmentAngle}deg)`,
+                      }}
+                    />
+                    <div 
+                      className="absolute top-[25%] left-[55%] transform -translate-x-1/2"
+                      style={{ 
+                        transform: `translate(-50%, 0) rotate(${segmentAngle / 2}deg)`,
+                        width: '45%',
+                      }}
+                    >
+                      <p className="text-white text-center font-bold text-sm md:text-base drop-shadow-md whitespace-nowrap">
+                        {prize.label}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Center circle */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white shadow-lg border-4 border-purple-600 flex items-center justify-center">
+                <Sparkles className="w-8 h-8 text-purple-600" />
+              </div>
+            </motion.div>
+          </div>
+        </div>
+
+        {/* Spin Button */}
+        <div className="text-center">
+          <Button
+            size="lg"
+            onClick={handleSpin}
+            disabled={isSpinning}
+            className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white font-bold text-xl px-12 py-6 rounded-full shadow-2xl transform transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSpinning ? 'Spinning...' : 'Spin the Wheel!'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Email Modal */}
+      <Dialog open={showEmailModal} onOpenChange={setShowEmailModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Claim Your Prize!</DialogTitle>
+            <DialogDescription>
+              Enter your email address to receive your reward
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEmailSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="email" className="font-bold">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your.email@example.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailError('');
+                }}
+                className="mt-2"
+              />
+              {emailError && (
+                <p className="text-red-500 text-sm mt-1">{emailError}</p>
+              )}
+            </div>
+            <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+              Claim Reward
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Result Modal */}
+      <Dialog open={showResultModal} onOpenChange={handleCloseResult}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl">
+              {wonPrize?.label === 'Try Again' ? 'Better Luck Next Time!' : 'Congratulations! 🎉'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="text-center py-6">
+            {wonPrize?.label === 'Try Again' ? (
+              <div>
+                <p className="text-lg mb-4">Don't worry, come back tomorrow for another chance!</p>
+                <p className="text-gray-600">We've sent you a special offer via email.</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xl mb-2">You've won</p>
+                <p className="text-4xl font-bold text-purple-600 mb-4">{wonPrize?.label}</p>
+                <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-gray-600 mb-2">Your discount code:</p>
+                  <p className="text-2xl font-bold text-purple-600 tracking-wider">{discountCode}</p>
+                </div>
+                <p className="text-sm text-gray-600">
+                  We've sent this code to <strong>{email}</strong>
+                </p>
+              </div>
+            )}
+          </div>
+          <Button onClick={handleCloseResult} className="w-full">
+            Close
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
