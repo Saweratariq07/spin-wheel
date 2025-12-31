@@ -15,7 +15,7 @@ export function LandingPage({ onStartSpin, onViewAdmin }: LandingPageProps) {
         <div className="text-center max-w-4xl mx-auto mb-16">
           <div className="flex items-center justify-center gap-3 mb-6">
             <Sparkles className="w-12 h-12 text-yellow-300 animate-pulse" />
-            <h1 className="text-white">Shopify Spin Wheel App</h1>
+            <h1 className="text-white"> Fleek Spin Wheel</h1>
             <Sparkles className="w-12 h-12 text-yellow-300 animate-pulse" />
           </div>
           <p className="text-white/90 text-xl mb-8">

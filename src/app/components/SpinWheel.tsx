@@ -38,10 +38,7 @@ export function SpinWheel() {
 
   const segmentAngle = 360 / prizes.length;
 
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const generateDiscountCode = (prize: Prize) => {
     const codes: { [key: string]: string } = {
@@ -59,8 +56,8 @@ export function SpinWheel() {
     if (isSpinning) return;
 
     setIsSpinning(true);
-    
-    // Select random prize based on probability
+
+    // Random prize based on probability
     const random = Math.random() * 100;
     let cumulativeProbability = 0;
     let selectedPrize = prizes[0];
@@ -73,16 +70,14 @@ export function SpinWheel() {
       }
     }
 
-    // Calculate rotation to land on selected prize
     const prizeIndex = prizes.findIndex(p => p.id === selectedPrize.id);
     const baseDegree = prizeIndex * segmentAngle;
     const randomOffset = Math.random() * segmentAngle;
-    const targetRotation = 360 * 5 + (360 - baseDegree - randomOffset); // 5 full rotations + target
+    const targetRotation = 360 * 5 + (360 - baseDegree - randomOffset);
 
     setRotation(rotation + targetRotation);
     setWonPrize(selectedPrize);
 
-    // Show email modal after spin completes
     setTimeout(() => {
       setIsSpinning(false);
       setShowEmailModal(true);
@@ -91,22 +86,19 @@ export function SpinWheel() {
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateEmail(email)) {
       setEmailError('Please enter a valid email address');
       return;
     }
 
     setEmailError('');
-    
     if (wonPrize) {
       const code = generateDiscountCode(wonPrize);
       setDiscountCode(code);
       setShowEmailModal(false);
       setShowResultModal(true);
-      
       if (wonPrize.label !== 'Try Again') {
-        toast.success('Prize claimed successfully! Check your email for details.');
+        toast.success('Prize claimed successfully! Check your email.');
       }
     }
   };
@@ -121,83 +113,63 @@ export function SpinWheel() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
       <div className="max-w-2xl w-full">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <Sparkles className="w-10 h-10 text-yellow-300 animate-pulse" />
-            <h1 className="text-white">Spin & Win!</h1>
+            <h1 className="text-white text-3xl sm:text-4xl md:text-5xl font-bold">Spin & Win!</h1>
             <Sparkles className="w-10 h-10 text-yellow-300 animate-pulse" />
           </div>
-          <p className="text-white/90 text-lg">Try your luck and win amazing prizes!</p>
-          <p className="text-white/70 text-sm mt-2">Enter your email after spinning to claim your reward</p>
+          <p className="text-white/90 text-lg sm:text-xl">Try your luck and win amazing prizes!</p>
+          <p className="text-white/70 text-sm sm:text-base mt-2">Enter your email after spinning to claim your reward</p>
         </div>
 
-        {/* Wheel Container */}
         <div className="relative flex items-center justify-center mb-12">
-          {/* Center pointer */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-4 z-20 drop-shadow-2xl">
             <div className="w-0 h-0 border-l-[20px] border-l-transparent border-r-[20px] border-r-transparent border-t-[30px] border-t-white" />
           </div>
 
-          {/* Wheel */}
-          <div className="relative w-[350px] h-[350px] sm:w-[400px] sm:h-[400px] md:w-[500px] md:h-[500px]">
+          <div className="relative w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] aspect-square">
             <motion.div
               ref={wheelRef}
               className="w-full h-full rounded-full relative overflow-hidden shadow-2xl"
-              style={{
-                background: '#fff',
-              }}
+              style={{ background: '#fff' }}
               animate={{ rotate: rotation }}
-              transition={{
-                duration: 4,
-                ease: [0.25, 0.1, 0.25, 1],
-              }}
+              transition={{ duration: 4, ease: [0.25, 0.1, 0.25, 1] }}
             >
               {prizes.map((prize, index) => {
-                const startAngle = index * segmentAngle - 90;
-                const endAngle = startAngle + segmentAngle;
-                
+                const angle = index * segmentAngle;
                 return (
                   <div
                     key={prize.id}
-                    className="absolute w-full h-full"
-                    style={{
-                      transform: `rotate(${index * segmentAngle}deg)`,
-                      transformOrigin: 'center',
-                    }}
+                    className="absolute w-full h-full top-0 left-0"
+                    style={{ transform: `rotate(${angle}deg)`, transformOrigin: '50% 50%' }}
                   >
                     <div
                       className="absolute top-0 left-1/2 w-1/2 h-1/2 origin-bottom-left"
                       style={{
                         background: `linear-gradient(135deg, ${prize.color} 0%, ${prize.color}dd 100%)`,
-                        clipPath: `polygon(0 0, 100% 0, 100% 100%)`,
+                        clipPath: 'polygon(0 0, 100% 0, 100% 100%)',
                         transform: `rotate(${segmentAngle}deg) skewY(${90 - segmentAngle}deg)`,
                       }}
                     />
-                    <div 
-                      className="absolute top-[25%] left-[55%] transform -translate-x-1/2"
-                      style={{ 
-                        transform: `translate(-50%, 0) rotate(${segmentAngle / 2}deg)`,
-                        width: '45%',
-                      }}
+                    <div
+                      className="absolute top-[25%] left-[55%] -translate-x-1/2"
+                      style={{ transform: `translate(-50%, 0) rotate(${segmentAngle / 2}deg)`, width: '45%' }}
                     >
-                      <p className="text-white text-center font-bold text-sm md:text-base drop-shadow-md whitespace-nowrap">
+                      <p className="text-white text-center font-bold text-sm sm:text-base md:text-lg drop-shadow-md whitespace-nowrap">
                         {prize.label}
                       </p>
                     </div>
                   </div>
                 );
               })}
-              
-              {/* Center circle */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white shadow-lg border-4 border-purple-600 flex items-center justify-center">
-                <Sparkles className="w-8 h-8 text-purple-600" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 sm:w-24 md:w-28 lg:w-32 h-20 sm:h-24 md:h-28 lg:h-32 rounded-full bg-white shadow-lg border-4 border-purple-600 flex items-center justify-center">
+                <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-purple-600" />
               </div>
             </motion.div>
           </div>
         </div>
 
-        {/* Spin Button */}
         <div className="text-center">
           <Button
             size="lg"
@@ -210,14 +182,11 @@ export function SpinWheel() {
         </div>
       </div>
 
-      {/* Email Modal */}
       <Dialog open={showEmailModal} onOpenChange={setShowEmailModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Claim Your Prize!</DialogTitle>
-            <DialogDescription>
-              Enter your email address to receive your reward
-            </DialogDescription>
+            <DialogDescription>Enter your email address to receive your reward</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEmailSubmit} className="space-y-4">
             <div>
@@ -233,9 +202,7 @@ export function SpinWheel() {
                 }}
                 className="mt-2"
               />
-              {emailError && (
-                <p className="text-red-500 text-sm mt-1">{emailError}</p>
-              )}
+              {emailError && <p className="text-red-500 text-sm mt-1">{emailError}</p>}
             </div>
             <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
               Claim Reward
@@ -244,7 +211,6 @@ export function SpinWheel() {
         </DialogContent>
       </Dialog>
 
-      {/* Result Modal */}
       <Dialog open={showResultModal} onOpenChange={handleCloseResult}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
