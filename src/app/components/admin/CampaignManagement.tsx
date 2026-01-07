@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState , useEffect} from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import axios from 'axios';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -9,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Switch } from '../ui/switch';
 import { Plus, Pencil, Trash2, Calendar, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
+
+
+const API_BASE = 'http://localhost:5000/api/admin';
 
 interface Campaign {
   id: string;
@@ -28,95 +32,145 @@ interface Prize {
   probability: number;
 }
 
-const mockCampaigns: Campaign[] = [
-  {
-    id: '1',
-    name: 'Summer Sale 2025',
-    status: 'active',
-    totalSpins: 1247,
-    startDate: '2025-06-01',
-    endDate: '2025-08-31',
-    spinsLimit: 5000,
-    prizes: [
-      { id: 'p1', type: 'percentage', value: '10', probability: 20 },
-      { id: 'p2', type: 'percentage', value: '15', probability: 15 },
-      { id: 'p3', type: 'free-shipping', value: 'Free Shipping', probability: 15 },
-    ],
-  },
-  {
-    id: '2',
-    name: 'New Year Special',
-    status: 'inactive',
-    totalSpins: 3421,
-    startDate: '2025-01-01',
-    endDate: '2025-01-31',
-    spinsLimit: 10000,
-    prizes: [
-      { id: 'p4', type: 'percentage', value: '20', probability: 10 },
-      { id: 'p5', type: 'fixed', value: '5', probability: 10 },
-    ],
-  },
-  {
-    id: '3',
-    name: 'Black Friday Mega Sale',
-    status: 'active',
-    totalSpins: 892,
-    startDate: '2025-11-25',
-    endDate: '2025-11-30',
-    spinsLimit: 20000,
-    prizes: [
-      { id: 'p6', type: 'percentage', value: '25', probability: 5 },
-      { id: 'p7', type: 'percentage', value: '10', probability: 20 },
-    ],
-  },
-];
-
 export function CampaignManagement() {
-  const [campaigns, setCampaigns] = useState<Campaign[]>(mockCampaigns);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+   const [shopId, setShopId] = useState('shop-123'); // Dummy shop  ID
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [formData, setFormData] = useState({
     name: '',
+    active: true,
     startDate: '',
     endDate: '',
     spinsLimit: '',
     status: 'active' as 'active' | 'inactive',
   });
+   const fetchCampaigns = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE}/shops/${shopId}/campaigns`);
+      setCampaigns(res.data.data);
+    } catch (error) {
+      console.error('Error fetching campaigns:', error);
+      alert('Failed to load campaigns');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const handleCreateCampaign = () => {
+   useEffect(() => {
+    fetchCampaigns();
+  }, [shopId]);
+
+  const handleSave = async (e: any) => {
+    e.preventDefault();
     if (!formData.name || !formData.startDate || !formData.endDate || !formData.spinsLimit) {
       toast.error('Please fill in all required fields');
       return;
     }
-
-    const newCampaign: Campaign = {
-      id: Date.now().toString(),
-      name: formData.name,
-      status: formData.status,
-      totalSpins: 0,
-      startDate: formData.startDate,
-      endDate: formData.endDate,
-      spinsLimit: parseInt(formData.spinsLimit),
-      prizes: [],
-    };
-
-    setCampaigns([newCampaign, ...campaigns]);
-    setIsCreateModalOpen(false);
-    setFormData({ name: '', startDate: '', endDate: '', spinsLimit: '', status: 'active' });
-    toast.success('Campaign created successfully!');
+    try {
+      const payload = {
+        name: formData.name,
+        status: formData.status,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        spinsLimit: parseInt(formData.spinsLimit),
+      };
+      if (selectedCampaign) {
+        // Update
+        await axios.put(`${API_BASE}/campaigns/${selectedCampaign.id}`, payload);
+        toast.success('Campaign updated successfully!');
+      } else {
+        // Create
+        await axios.post(`${API_BASE}/shops/${shopId}/campaigns`, {
+          shopId,
+          ...payload,
+        });
+        toast.success('Campaign created successfully!');
+      }
+      setShowModal(false);
+      setFormData({
+        name: '',
+        active: true,
+        startDate: '',
+        endDate: '',
+        spinsLimit: '',
+        status: 'active',
+      });
+      setSelectedCampaign(null);
+      fetchCampaigns();
+    } catch (error) {
+      console.error('Error saving campaign:', error);
+      toast.error('Failed to save campaign');
+    }
   };
 
-  const handleDeleteCampaign = (id: string) => {
-    setCampaigns(campaigns.filter(c => c.id !== id));
-    toast.success('Campaign deleted successfully');
+  // Delete campaign
+  const handleDelete = async (campaignId: string) => {
+    if (window.confirm('Are you sure you want to delete this campaign?')) {
+      try {
+        await axios.delete(`${API_BASE}/campaigns/${campaignId}`);
+        toast.success('Campaign deleted successfully!');
+        fetchCampaigns();
+      } catch (error) {
+        console.error('Error deleting campaign:', error);
+        toast.error('Failed to delete campaign');
+      }
+    }
   };
 
-  const toggleCampaignStatus = (id: string) => {
-    setCampaigns(campaigns.map(c => 
-      c.id === id ? { ...c, status: c.status === 'active' ? 'inactive' as const : 'active' as const } : c
-    ));
-    toast.success('Campaign status updated');
+  // Toggle campaign status
+  const toggleCampaignStatus = async (campaignId: string) => {
+    try {
+      const campaign = campaigns.find(c => c.id === campaignId);
+      if (campaign) {
+        const newStatus = campaign.status === 'active' ? 'inactive' : 'active';
+        await axios.put(`${API_BASE}/campaigns/${campaignId}`, { status: newStatus });
+        toast.success('Campaign status updated!');
+        fetchCampaigns();
+      }
+    } catch (error) {
+      console.error('Error updating campaign status:', error);
+      toast.error('Failed to update campaign status');
+    }
   };
+
+  // Open create/edit modal
+  const handleOpenModal = (campaign: Campaign | null = null) => {
+    if (campaign) {
+      setSelectedCampaign(campaign);
+      setFormData({
+        name: campaign.name,
+        active: campaign.status === 'active',
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        spinsLimit: campaign.spinsLimit.toString(),
+        status: campaign.status,
+      });
+    } else {
+      setSelectedCampaign(null);
+      setFormData({
+        name: '',
+        active: true,
+        startDate: '',
+        endDate: '',
+        spinsLimit: '',
+        status: 'active',
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleCreateCampaign = () => handleSave({ preventDefault: () => {} } as any);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-linear-to-br from-blue-50 to-indigo-100">
+        <div className="text-2xl font-semibold text-gray-700">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -126,18 +180,18 @@ export function CampaignManagement() {
           <h2 className="text-gray-900">Campaign Management</h2>
           <p className="text-gray-600 mt-1">Create and manage your spin wheel campaigns</p>
         </div>
-        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <Dialog open={showModal} onOpenChange={setShowModal}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+            <Button className="bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
               <Plus className="w-4 h-4 mr-2" />
               Create New Campaign
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Create New Campaign</DialogTitle>
+              <DialogTitle>{selectedCampaign ? 'Edit Campaign' : 'Create New Campaign'}</DialogTitle>
               <DialogDescription>
-                Set up a new spin wheel campaign for your store
+                {selectedCampaign ? 'Update your spin wheel campaign' : 'Set up a new spin wheel campaign for your store'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -198,11 +252,11 @@ export function CampaignManagement() {
               </div>
             </div>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+              <Button variant="outline" onClick={() => setShowModal(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateCampaign} className="bg-purple-600 hover:bg-purple-700">
-                Create Campaign
+              <Button onClick={handleSave} className="bg-purple-600 hover:bg-purple-700">
+                {selectedCampaign ? 'Update Campaign' : 'Create Campaign'}
               </Button>
             </div>
           </DialogContent>
@@ -246,7 +300,7 @@ export function CampaignManagement() {
                   </div>
                   <div className="mt-2 bg-gray-200 rounded-full h-2 overflow-hidden">
                     <div 
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 h-full rounded-full transition-all"
+                      className="bg-linear-to-r from-purple-600 to-blue-600 h-full rounded-full transition-all"
                       style={{ width: `${(campaign.totalSpins / campaign.spinsLimit) * 100}%` }}
                     />
                   </div>
@@ -260,7 +314,7 @@ export function CampaignManagement() {
                     variant="outline"
                     size="sm"
                     className="flex-1"
-                    onClick={() => setEditingCampaign(campaign)}
+                    onClick={() => handleOpenModal(campaign)}
                   >
                     <Pencil className="w-3 h-3 mr-1" />
                     Edit
@@ -275,7 +329,7 @@ export function CampaignManagement() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleDeleteCampaign(campaign.id)}
+                    onClick={() => handleDelete(campaign.id)}
                     className="text-red-600 hover:bg-red-50"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -296,7 +350,7 @@ export function CampaignManagement() {
               </div>
               <h3 className="text-gray-900 mb-2">No campaigns yet</h3>
               <p className="text-gray-600 mb-4">Create your first spin wheel campaign to get started</p>
-              <Button onClick={() => setIsCreateModalOpen(true)} className="bg-purple-600 hover:bg-purple-700">
+              <Button onClick={() => handleOpenModal()} className="bg-purple-600 hover:bg-purple-700">
                 Create Campaign
               </Button>
             </div>

@@ -1,10 +1,20 @@
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Check, Zap, Rocket, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 
-const plans = [
+const API_BASE = 'http://localhost:5000/api/admin';
+
+const iconMap: { [key: string]: any } = {
+  Zap,
+  Rocket,
+  Crown,
+};
+
+const defaultPlans = [
   {
     id: 'free',
     name: 'Free',
@@ -82,13 +92,69 @@ const plans = [
 ];
 
 export function PricingPlans() {
+  const [plans, setPlans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchPlans = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE}/pricing-plans`);
+      if (res.data.data && Array.isArray(res.data.data)) {
+        // Map backend data to component format
+        const mappedPlans = res.data.data.map((plan: any) => ({
+          ...plan,
+          icon: iconMap[plan.icon] || Zap,
+          buttonVariant: plan.buttonVariant || (plan.id === 'free' ? 'outline' : 'default'),
+          color: plan.color || 'from-gray-500 to-gray-600',
+          features: plan.features || [],
+          limitations: plan.limitations || [],
+        }));
+        setPlans(mappedPlans);
+      } else {
+        // Fallback to default plans if API doesn't return data
+        setPlans(defaultPlans as any);
+      }
+    } catch (error) {
+      console.error('Error fetching pricing plans:', error);
+      toast.error('Failed to load pricing plans');
+      // Fallback to default plans
+      setPlans(defaultPlans as any);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading pricing plans...</p>
+        </div>
+      </div>
+    );
+  }
+
   const handleSubscribe = (planId: string, planName: string) => {
     if (planId === 'free') {
       toast.info('You are already on the Free plan');
     } else {
-      toast.success(`Upgrading to ${planName}... (Demo mode)`);
+      try {
+        axios.post(`${API_BASE}/subscribe`, { planId }).then(() => {
+          toast.success(`Upgrading to ${planName}...`);
+          fetchPlans();
+        }).catch(() => {
+          toast.error('Failed to upgrade plan');
+        });
+      } catch (error) {
+        toast.error('Failed to upgrade plan');
+      }
     }
-  };
+  }
 
   return (
     <div className="space-y-8">
@@ -122,7 +188,7 @@ export function PricingPlans() {
               )}
               
               <CardHeader className="text-center pb-8 pt-10">
-                <div className={`w-16 h-16 mx-auto mb-4 bg-gradient-to-br ${plan.color} rounded-2xl flex items-center justify-center shadow-lg`}>
+                <div className={`w-16 h-16 mx-auto mb-4 bg-linear-to-br ${plan.color} rounded-2xl flex items-center justify-center shadow-lg`}>
                   <Icon className="w-8 h-8 text-white" />
                 </div>
                 <CardTitle className="text-2xl mb-2">{plan.name}</CardTitle>
@@ -136,9 +202,9 @@ export function PricingPlans() {
               <CardContent className="space-y-6">
                 {/* Features List */}
                 <div className="space-y-3">
-                  {plan.features.map((feature, index) => (
+                  {plan.features.map((feature: any, index: number) => (
                     <div key={index} className="flex items-start gap-3">
-                      <div className={`mt-0.5 p-0.5 bg-gradient-to-br ${plan.color} rounded-full`}>
+                      <div className={`mt-0.5 p-0.5 bg-linear-to-br ${plan.color} rounded-full`}>
                         <Check className="w-4 h-4 text-white" />
                       </div>
                       <span className="text-gray-700 text-sm">{feature}</span>
@@ -151,7 +217,7 @@ export function PricingPlans() {
                   <div className="pt-4 border-t border-gray-200">
                     <p className="text-xs text-gray-500 mb-2">Limitations:</p>
                     <div className="space-y-2">
-                      {plan.limitations.map((limitation, index) => (
+                      {plan.limitations.map((limitation: any, index: number) => (
                         <div key={index} className="flex items-start gap-2">
                           <span className="text-gray-400 text-xs">•</span>
                           <span className="text-gray-500 text-xs">{limitation}</span>
@@ -165,7 +231,7 @@ export function PricingPlans() {
                 <Button
                   className={`w-full mt-6 ${
                     plan.buttonVariant === 'default' 
-                      ? `bg-gradient-to-r ${plan.color} hover:opacity-90 text-white` 
+                      ? `bg-linear-to-r ${plan.color} hover:opacity-90 text-white` 
                       : ''
                   }`}
                   variant={plan.buttonVariant}
@@ -231,13 +297,13 @@ export function PricingPlans() {
       </div>
 
       {/* Enterprise Contact */}
-      <Card className="max-w-4xl mx-auto bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+      <Card className="max-w-4xl mx-auto bg-linear-to-r from-purple-50 to-blue-50 border-purple-200">
         <CardContent className="py-8 text-center">
           <h3 className="text-gray-900 mb-2">Need a custom solution?</h3>
           <p className="text-gray-600 mb-6">
             Our Enterprise plan can be customized to fit your specific needs. Contact us to discuss your requirements.
           </p>
-          <Button size="lg" className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+          <Button size="lg" className="bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
             Contact Sales
           </Button>
         </CardContent>

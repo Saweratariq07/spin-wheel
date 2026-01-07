@@ -1,25 +1,11 @@
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Users, Gift, DollarSign, Target, Zap } from 'lucide-react';
+import { TrendingUp, Users, Gift, DollarSign, Target, Zap, ArrowLeft } from 'lucide-react';
+import axios from 'axios';
 
-const spinData = [
-  { date: 'Dec 24', spins: 120, conversions: 45 },
-  { date: 'Dec 25', spins: 180, conversions: 68 },
-  { date: 'Dec 26', spins: 150, conversions: 52 },
-  { date: 'Dec 27', spins: 210, conversions: 89 },
-  { date: 'Dec 28', spins: 190, conversions: 71 },
-  { date: 'Dec 29', spins: 230, conversions: 95 },
-  { date: 'Dec 30', spins: 280, conversions: 112 },
-];
 
-const prizeDistribution = [
-  { name: '10% OFF', value: 320, color: '#FF6B6B' },
-  { name: '15% OFF', value: 240, color: '#4ECDC4' },
-  { name: '20% OFF', value: 180, color: '#FFD93D' },
-  { name: 'Free Shipping', value: 210, color: '#95E1D3' },
-  { name: '$5 OFF', value: 150, color: '#AA96DA' },
-  { name: 'Try Again', value: 280, color: '#FCBAD3' },
-];
+const API_BASE = 'http://localhost:5000/api/admin';
 
 const conversionData = [
   { campaign: 'Summer Sale', rate: 42 },
@@ -28,63 +14,130 @@ const conversionData = [
   { campaign: 'Spring Special', rate: 48 },
 ];
 
-export function AnalyticsDashboard() {
+
+
+export function AnalyticsDashboard({ campaignId, shopId, onBack }: { campaignId?: string; shopId?: string; onBack?: () => void }) {
+    const [campaignData, setCampaignData] = useState<any>(null);
+  const [shopData, setShopData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [campaignId, shopId]);
+
+  const fetchAnalytics = async () => {
+    setLoading(true);
+    try {
+      if (campaignId) {
+        const res = await axios.get(`${API_BASE}/campaigns/${campaignId}/analytics?days=30`);
+        setCampaignData(res.data.data);
+      } else if (shopId) {
+        const res = await axios.get(`${API_BASE}/shops/${shopId}/analytics`);
+        setShopData(res.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching analytics:', error);
+      alert('Failed to load analytics');
+    } finally {
+      setLoading(false);
+    }
+  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
+
+   // Prepare chart data from spinsByDay
+  const chartData = campaignData && campaignData.spinsByDay
+    ? Object.entries(campaignData.spinsByDay).map(([date, spins]: [string, any]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        spins: spins as number,
+        conversions: Math.floor((spins as number) * 0.42), // Rough estimate
+      }))
+    : [];
+
+  // Prepare pie chart data
+  const prizeChartData = campaignData && campaignData.topPrizes
+    ? campaignData.topPrizes.map((prize: any, idx: number) => ({
+        name: prize.name,
+        value: prize.count,
+        color: ['#FF6B6B', '#4ECDC4', '#FFD93D', '#95E1D3', '#AA96DA'][idx % 5],
+      }))
+    : [];
+
+  const metrics = campaignData?.metrics || shopData || {};
   return (
     <div className="space-y-6">
       {/* Header */}
+      <div className="flex items-center gap-4 mb-6">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-semibold"
+          >
+            <ArrowLeft size={20} />
+            Back
+          </button>
+        )}
       <div>
         <h2 className="text-gray-900">Analytics Dashboard</h2>
         <p className="text-gray-600 mt-1">Track performance and insights for your campaigns</p>
       </div>
-
+     </div>
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+        <Card className="bg-linear-to-br from-purple-500 to-purple-600 text-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-white/90">Total Spins</CardTitle>
             <Zap className="h-4 w-4 text-white/90" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">5,642</div>
+            <div className="text-3xl font-bold">{metrics.totalSpins || 0}</div>
             <p className="text-xs text-white/80 mt-1">
               <span className="text-green-200">↑ 12.5%</span> from last month
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+        <Card className="bg-linear-to-br from-blue-500 to-blue-600 text-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-white/90">Discount Codes Redeemed</CardTitle>
             <Gift className="h-4 w-4 text-white/90" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">2,847</div>
+            <div className="text-3xl font-bold">{metrics.totalCodes || metrics.discountCodes || 0}</div>
             <p className="text-xs text-white/80 mt-1">
               <span className="text-green-200">↑ 8.3%</span> from last month
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white">
+        <Card className="bg-linear-to-br from-teal-500 to-teal-600 text-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-white/90">Conversion Rate</CardTitle>
             <Target className="h-4 w-4 text-white/90" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">50.4%</div>
+            <div className="text-3xl font-bold">{metrics.conversionRate || '0'}%</div>
             <p className="text-xs text-white/80 mt-1">
               <span className="text-green-200">↑ 4.2%</span> from last month
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+        <Card className="bg-linear-to-br from-orange-500 to-orange-600 text-white">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-white/90">Revenue Generated</CardTitle>
             <DollarSign className="h-4 w-4 text-white/90" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">$18,423</div>
+            <div className="text-3xl font-bold">{metrics.uniqueEmails || 0}</div>
             <p className="text-xs text-white/80 mt-1">
               <span className="text-green-200">↑ 15.7%</span> from last month
             </p>
@@ -95,6 +148,7 @@ export function AnalyticsDashboard() {
       {/* Charts Grid */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Spins & Conversions Over Time */}
+         {chartData.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Spins & Conversions</CardTitle>
@@ -102,7 +156,7 @@ export function AnalyticsDashboard() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={spinData}>
+              <LineChart  data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="date" stroke="#888" />
                 <YAxis stroke="#888" />
@@ -135,8 +189,10 @@ export function AnalyticsDashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+         )}
 
         {/* Prize Distribution */}
+        {prizeChartData.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Prize Distribution</CardTitle>
@@ -146,7 +202,8 @@ export function AnalyticsDashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={prizeDistribution}
+                
+                 data={prizeChartData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -155,9 +212,9 @@ export function AnalyticsDashboard() {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {prizeDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
+                  {prizeChartData.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
                 </Pie>
                 <Tooltip 
                   contentStyle={{ 
@@ -171,6 +228,7 @@ export function AnalyticsDashboard() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+         )}
 
         {/* Conversion Rate by Campaign */}
         <Card className="md:col-span-2">
