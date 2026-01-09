@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Sparkles } from 'lucide-react';
@@ -8,10 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { toast } from 'sonner';
 
 interface Prize {
-  id: number;
+  id?: number;
   label: string;
-  color: string;
-  probability: number;
+  color?: string;
+  probability?: number;
+  value?: number;
 }
 
 const prizes: Prize[] = [
@@ -33,50 +35,28 @@ export function SpinWheel() {
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
-  const [discountCode, setDiscountCode] = useState('');
   const wheelRef = useRef<HTMLDivElement>(null);
 
   const segmentAngle = 360 / prizes.length;
 
-  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  const generateDiscountCode = (prize: Prize) => {
-    const codes: { [key: string]: string } = {
-      '10% OFF': 'SPIN10',
-      '15% OFF': 'SPIN15',
-      '20% OFF': 'SPIN20',
-      '25% OFF': 'SPIN25',
-      'Free Shipping': 'SHIPFREE',
-      '$5 OFF': 'SAVE5',
-    };
-    return codes[prize.label] || 'TRYAGAIN';
+  const validateEmail = (value: string) => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return false;
+    const domain = value.split('@')[1]?.toLowerCase();
+    return domain === 'gmail.com' || domain === 'googlemail.com';
   };
 
-  const handleSpin = () => {
+   const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+   //campain id 
+   const CAMPAIGN_ID = import.meta.env.VITE_CAMPAIGN_ID || '';
+
+ const handleSpin = () => {
     if (isSpinning) return;
 
     setIsSpinning(true);
 
-    // Random prize based on probability
-    const random = Math.random() * 100;
-    let cumulativeProbability = 0;
-    let selectedPrize = prizes[0];
-
-    for (const prize of prizes) {
-      cumulativeProbability += prize.probability;
-      if (random <= cumulativeProbability) {
-        selectedPrize = prize;
-        break;
-      }
-    }
-
-    const prizeIndex = prizes.findIndex(p => p.id === selectedPrize.id);
-    const baseDegree = prizeIndex * segmentAngle;
-    const randomOffset = Math.random() * segmentAngle;
-    const targetRotation = 360 * 5 + (360 - baseDegree - randomOffset);
-
-    setRotation(rotation + targetRotation);
-    setWonPrize(selectedPrize);
+    // keep spin animation local, but let backend decide the prize on claim
+    const randomRotation = 360 * 5 + Math.random() * 360;
+    setRotation((r) => r + randomRotation);
 
     setTimeout(() => {
       setIsSpinning(false);
@@ -84,31 +64,58 @@ export function SpinWheel() {
     }, 4000);
   };
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateEmail(email)) {
-      setEmailError('Please enter a valid email address');
+      setEmailError('Please enter a valid Gmail address');
       return;
     }
 
     setEmailError('');
-    if (wonPrize) {
-      const code = generateDiscountCode(wonPrize);
-      setDiscountCode(code);
-      setShowEmailModal(false);
-      setShowResultModal(true);
-      if (wonPrize.label !== 'Try Again') {
-        toast.success('Prize claimed successfully! Check your email.');
+    setShowEmailModal(false);
+
+    if (!CAMPAIGN_ID) {
+      toast.error('Campaign ID not configured. Add VITE_CAMPAIGN_ID to .env file');
+      setShowEmailModal(true);
+      return;
+    }
+
+    try {
+      const resp = await fetch(`${BACKEND_URL}/api/spin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, campaignId: CAMPAIGN_ID }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || 'Server error');
       }
+
+      const data = await resp.json();
+
+      // Backend determines the prize; show it in the UI but do NOT display code
+      setWonPrize({ label: data.prizeWon || 'Try Again', value: data.prizeValue });
+      setShowResultModal(true);
+
+      if ((data.prizeWon || '').toLowerCase() !== 'try again') {
+        toast.success('Prize claimed — check your Gmail for the code.');
+      } else {
+        toast.success('Result recorded — check your Gmail for offers.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to claim prize. Please try again.');
+      setShowEmailModal(true);
     }
   };
 
   const handleCloseResult = () => {
     setShowResultModal(false);
     setEmail('');
-    setDiscountCode('');
     setWonPrize(null);
   };
+
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
@@ -125,22 +132,22 @@ export function SpinWheel() {
 
         <div className="relative flex items-center justify-center mb-12">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-4 z-20 drop-shadow-2xl">
-            <div className="w-0 h-0 border-l-[20px] border-l-transparent border-r-[20px] border-r-transparent border-t-[30px] border-t-white" />
+            <div className="w-0 h-0 border-l-[20px] border-l-transparent border-r-[20px] border-r-transparent border-t-30 border-t-white" />
           </div>
 
-          <div className="relative w-[300px] sm:w-[400px] md:w-[500px] lg:w-[600px] aspect-square">
+          <div className="relative w-75 sm:w-[400px] md:w-125 lg:w-[600px] aspect-square">
             <motion.div
-              ref={wheelRef}
+              // ref={wheelRef}
               className="w-full h-full rounded-full relative overflow-hidden shadow-2xl"
               style={{ background: '#fff' }}
               animate={{ rotate: rotation }}
               transition={{ duration: 4, ease: [0.25, 0.1, 0.25, 1] }}
             >
-              {prizes.map((prize, index) => {
+               {prizes.map((prize, index) => {
                 const angle = index * segmentAngle;
                 return (
                   <div
-                    key={prize.id}
+                    key={prize.label + index}
                     className="absolute w-full h-full top-0 left-0"
                     style={{ transform: `rotate(${angle}deg)`, transformOrigin: '50% 50%' }}
                   >
@@ -204,7 +211,7 @@ export function SpinWheel() {
               />
               {emailError && <p className="text-red-500 text-sm mt-1">{emailError}</p>}
             </div>
-            <Button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
+            <Button type="submit" className="w-full bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700">
               Claim Reward
             </Button>
           </form>
@@ -228,10 +235,10 @@ export function SpinWheel() {
               <div>
                 <p className="text-xl mb-2">You've won</p>
                 <p className="text-4xl font-bold text-purple-600 mb-4">{wonPrize?.label}</p>
-                <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 mb-4">
+                {/* <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 mb-4">
                   <p className="text-sm text-gray-600 mb-2">Your discount code:</p>
                   <p className="text-2xl font-bold text-purple-600 tracking-wider">{discountCode}</p>
-                </div>
+                </div> */}
                 <p className="text-sm text-gray-600">
                   We've sent this code to <strong>{email}</strong>
                 </p>
